@@ -1,0 +1,11 @@
+Revision history for Data-Validate-XSD
+
+0.01    2006-02-02
+        First version, not released.
+0.02    2006-07-13
+        Second version, modularised from Rair
+0.03    2006-11-07
+        Moved file loading into it's own part
+0.04    2007-09-04
+        Got arround to prepping it for cpan
+
