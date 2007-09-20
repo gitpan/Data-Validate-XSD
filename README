@@ -1,4 +1,4 @@
-Data::Validate::XSD (last updated 2007-09-04)
+Data::Validate::XSD (last updated 2007-09-20)
 
 This module allows the weilder to test data structures against xsd like perl definitions. White magic.
 
@@ -39,4 +39,4 @@ COPYRIGHT AND LICENCE
 Copyright (C) 2007 Martin Owens
 
 This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself or the GPLv3.
+under the GPLv3.

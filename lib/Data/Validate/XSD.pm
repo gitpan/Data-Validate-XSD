@@ -28,14 +28,14 @@ Data::Validate::XSD - Validate complex structures by definition
   It is possible to work out a one dimention error reporting scheme too which I may
   work on next.
 
-=head1 definitionS
+=head1 DEFINITIONS
 
   A definition is a hash containing information like an xml node containing children.
 
   An example definition and the kind of data it validates:
 
-$definition = {
 
+$definition = {
     root => [ { name => 'input', type => 'newuser' } ],
 
     simpleTypes => [
@@ -57,6 +57,7 @@ $definition = {
     },
 };
 
+
 $data = {
     input => {
       username     => 'abcdef',
@@ -68,6 +69,7 @@ $data = {
       emailAddress => 'foo@bar.com',
     }
 };
+
 
 =head1 RESULTS
 
@@ -92,8 +94,9 @@ $errors = {
 =cut
 
 use Carp;
-use Scalar::Util qw(looks_like_number);
-our $VERSION = "1.02";
+use Scalar::Util qw/looks_like_number/;
+use Date::Parse qw/str2time/;
+our $VERSION = "1.03";
 
 # Error codes
 our $NOERROR             = 0x00;
@@ -113,6 +116,7 @@ our $INVALID_CHILDREN    = 0x20;
 our $INVALID_EXIST       = 0x21;
 our $INVALID_MIN_OCCURS  = 0x22;
 our $INVALID_MAX_OCCURS  = 0x23;
+our $INVALID_CUSTOM      = 0x30;
 our $CRITICAL            = 0x40;
 
 our %complexTypes = ();
@@ -124,9 +128,9 @@ our %simpleTypes = (
     token      => { base    => 'string', pattern => '\w+' },
     boolean    => { pattern => '1|0|true|false' },
     email      => { pattern => '.+@.+\..+' },
-    date       => { pattern => '\d\d\d\d-\d\d-\d\d' },
-    'time'     => { pattern => '\d\d:\d\d' },
-    datetime   => { pattern => '\d\d\d\d-\d\d-\d\d \d\d:\d\d' },
+    date       => { pattern => '\d\d\d\d-\d\d-\d\d', base => 'datetime' },
+    'time'     => { pattern => '\d\d:\d\d',          base => 'datetime' },
+    datetime   => { pattern => '(\d\d\d\d-\d\d-\d\d)?[T ]?(\d\d:\d\d)?', custom => sub { test_datetime(@_) } },
     percentage => { base => 'double', minInclusive => 0, maxInclusive => 100 },
   );
 
@@ -162,6 +166,7 @@ sub new {
     $INVALID_CHILDREN    = 'Invalid Children: Failed to validate child node ['.$INVALID_CHILDREN.']';
     $INVALID_MIN_OCCURS  = 'Invalid Occurs: Minium number of occurances not met ['.$INVALID_MIN_OCCURS.']';
     $INVALID_MAX_OCCURS  = 'Invalid Occurs: Maxium number of occurances exceeded ['.$INVALID_MAX_OCCURS.']';
+	$INVALID_CUSTOM      = 'Invalid Custom Filter: Method returned false ['.$INVALID_CUSTOM.']';
     $CRITICAL            = 'Critical Problem [QUIT] ['.$CRITICAL.']';
   }
   return $self;
@@ -470,6 +475,14 @@ sub _validate_type {
         return $INVALID_PATTERN, 1;
       }
     }
+	# Custom method check
+	if(defined($typedef->{'custom'})) {
+		my $method = $typedef->{'custom'};
+
+		if(ref($method) ne 'CODE' or not $method->($data, $typedef)) {
+			return $INVALID_CUSTOM;
+		}
+	}
     # Length checks
     if(defined($typedef->{'maxLength'})) {
       if(length($data) > $typedef->{'maxLength'}) {
@@ -586,9 +599,25 @@ sub _load_file {
   return $structure;
 }
 
+=head2 $validate->objectify( $class, @data )
+
+  Create a data based object for this type.
+
+=cut
+sub test_datetime {
+  my ($data, $typedef) = @_;
+  if($data) {
+	my $epoch = str2time( $data );
+	if($epoch) {
+		return 1;
+	}
+  }
+  print undef;
+}
+
 =head1 AUTHOR
 
- I<Martin Owens> Copyright 2007, GPLv3
+ Copyright, Martin Owens 2007, GPLv3
 
 =cut
 1;
