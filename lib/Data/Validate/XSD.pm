@@ -12,11 +12,9 @@ Data::Validate::XSD - Validate complex structures by definition
 
   my $validator = Data::Validate::XSD->new( \%definition );
 
-  my ($errors, $error) = $validator->validate( \%data );
+  $errors = $validator->validate( \%data );
 
-  if($error) {
-    carp Dumper($errors);
-  }
+  warn Dumper($errors) if $errors;
 
 =head1 DESCRIPTION
   
@@ -28,15 +26,28 @@ Data::Validate::XSD - Validate complex structures by definition
   It is possible to work out a one dimention error reporting scheme too which I may
   work on next.
 
-=head1 DEFINITIONS
+=head1 INVITATION
+
+  If you find an example where the W3C definitions and this module differ then
+  please email the author and a new version with fixes can be released.
+
+  If you find there is a certain type that your always using then let me know
+  I can consider adding the type to the default set and make the module more useful.
+
+=head1 EXAMPLES
+
+=head2 Definitions
 
   A definition is a hash containing information like an xml node containing children.
 
-  An example definition and the kind of data it validates:
+  An example definition for registering a user on a website:
 
 
-$definition = {
-    root => [ { name => 'input', type => 'newuser' } ],
+$def = {
+    root => [
+      { name => 'input', type => 'newuser' },
+      { name => 'foo',   type => 'string'  },
+    ],
 
     simpleTypes => [
       confirm  => { base => 'id',   match => '/input/password' },
@@ -46,16 +57,27 @@ $definition = {
 
     complexTypes => {
       newuser => [
-        { name => 'username',     type => 'id' },
-        { name => 'password',     type => 'password' },
-        { name => 'confirm',      type => 'confirm' },
-        { name => 'firstName',    type => 'rname' },
-        { name => 'familyName',   type => 'name',  minOccurs => 0 },
-        { name => 'nickName',     type => 'name',  minOccurs => 0 },
-        { name => 'emailAddress', type => 'email', minOccurs => 0 },
+        { name => 'username',     type => 'token'                                 },
+        { name => 'password',     type => 'password'                              },
+        { name => 'confirm',      type => 'confirm'                               },
+        { name => 'firstName',    type => 'rname'                                 },
+        { name => 'familyName',   type => 'name',  minOccurs => 0                 },
+        { name => 'nickName',     type => 'name',  minOccurs => 0                 },
+        { name => 'emailAddress', type => 'email', minOccurs => 1, maxOccurs => 3 },
+    [
+      { name => 'aim',    type => 'index'  },
+      { name => 'msn',    type => 'email'  },
+      { name => 'jabber', type => 'email'  },
+      { name => 'irc',    type => 'string' },
+    ]
       ],
     },
 };
+
+
+=head2 Data
+
+And this is an example of the data that would validate against it:
 
 
 $data = {
@@ -66,20 +88,25 @@ $data = {
       firstName    => 'test',
       familyName   => 'user',
       nickName     => 'foobar',
-      emailAddress => 'foo@bar.com',
-    }
+      emailAddress => [ 'foo@bar.com', 'some@other.or', 'great@nice.con' ],
+      msn          => 'foo@msn.com',
+    },
+    foo => 'extra content',
 };
 
 
-=head1 RESULTS
+We are asking for a username, a password typed twice, some real names, a nick name,
+between 1 and 3 email addresses and at least one instant message account, foo is an
+extra string of information to show that the level is arbitary. bellow the definition
+and all options are explained.
+
+=head2 Results
 
 The first result you get is a structure the second is a boolean, the boolean explains the total stuctures pass or fail status.
 
 The structure that is returned is almost a mirror structure of the input:
 
-$error = 0;
 $errors = {
-    _input => 0,
     input => {
        username     => 0,
        password     => 0,
@@ -91,113 +118,185 @@ $errors = {
     }
 },
 
+=head1 DETAILED DEFINITION
+
+=head2 Definition Root
+
+  root         - The very first level of all structures, it should contain the first
+                 level complex type (see below). The data by default is a hash since
+                 all xml have at least one level of xml tags names.
+
+  import       - A list of file names, local to perl that should be loaded to include
+                 further and shared simple and complex types. Supported formats are
+                 "perl code", xml and yml.
+
+  simpleTypes  - A hash reference containing each simple definition which tests a
+                 scalar type (see below for format of each definition)
+                
+
+  complexTypes - A hash reference containing each complex definition which tests a
+                 structure (see below for definition).
+
+
+=head2 Simple Types
+
+  A simple type is a definition which will validate data directly, it will never validate
+  arrays, hashes or any future wacky structural types. In perl parlance it will only validate
+  SCALAR types. These options should match the w3c simple types definition:
+
+  base           - The name of another simple type to first test the value against.
+  fixed          - The value should match this exactly.
+  pattern        - Should be a regular expresion reference which matchs the value i.e qr/\w/
+  minLength      - The minimum length of a string value.
+  maxLength      - The maximum length of a string value.
+  match          - An XPath link to another data node it should match.
+  notMatch       - An XPath link to another data node it should NOT match.
+  enumeration    - An array reference of possible values of which value should be one.
+  custom         - Should contain a CODE reference which will be called upon to validate the value.
+  minInclusive   - The minimum value of a number value inclusive, i.e greater than or eq to (>=).
+  maxInclusive   - The maximum value of a number value inclusive, i.e less than of eq to (<=).
+  minExclusive   - The minimum value of a number value exlusive, i.e more than (>).
+  maxExclusive   - The maximum value of a number value exlusive, i.e less than (<).
+  fractionDigits - The maximum number of digits on a fractional number.
+
+=head2 Complex Types
+
+  A complex type is a definition which will validate a hash reference, the very first structure,
+  'root' is a complex definition and follows the same syntax as all complex types. each complex
+  type is a list of data which should all occur in the hash, when a list entry is a hash; it
+  equates to one named entry in the hash data and has the following options:
+
+  name      - Required name of the entry in the hash data.
+  minOccurs - The minimum number of the named that this data should have in it.
+  maxOccurs - The maximum number of the named that this data should have in it.
+  type      - The type definition which validates the contents of the data.
+
+  Where the list entry is an array, it will toggle the combine mode and allow further list entries
+  With in it; this allows for parts of the sturcture to be optional only if different parts of the
+  stucture exist.
+
+=head1 INBUILT TYPES
+
+  By default these types are available to all definitions as base types.
+
+    string           - /^.*$/
+    integer          - /^[\-]{0,1}\d+$/
+    index            - /^\d+$/
+    double           - /^[0-9\-\.]*$/
+    token            - /^\w+$/
+    boolean          - /^1|0|true|false$/
+    email            - /^.+@.+\..+$/
+    date             - /^\d\d\d\d-\d\d-\d\d$/ + datetime
+    'time'           - /^\d\d:\d\d$/ + datetime
+    datetime         - /^(\d\d\d\d-\d\d-\d\d)?[T ]?(\d\d:\d\d)?$/ + valid_date method
+    percentage       - minInclusive == 0 + maxInclusive == 100 + double
+
 =cut
 
 use Carp;
 use Scalar::Util qw/looks_like_number/;
 use Date::Parse qw/str2time/;
-our $VERSION = "1.03";
+our $VERSION = "1.05";
 
 # Error codes
-our $NOERROR             = 0x00;
-our $INVALID_TYPE        = 0x01;
-our $INVALID_PATTERN     = 0x02;
-our $INVALID_MINLENGTH   = 0x03;
-our $INVALID_MAXLENGTH   = 0x04;
-our $INVALID_MATCH       = 0x05;
-our $INVALID_VALUE       = 0x06;
-our $INVALID_NODE        = 0x07;
-our $INVALID_ENUMERATION = 0x08;
-our $INVALID_MIN_RANGE   = 0x09;
-our $INVALID_MAX_RANGE   = 0x0A;
-our $INVALID_NUMBER      = 0x0B;
-our $INVALID_COMPLEX     = 0x10;
-our $INVALID_CHILDREN    = 0x20;
-our $INVALID_EXIST       = 0x21;
-our $INVALID_MIN_OCCURS  = 0x22;
-our $INVALID_MAX_OCCURS  = 0x23;
-our $INVALID_CUSTOM      = 0x30;
-our $CRITICAL            = 0x40;
+my $NOERROR             = 0x00;
+my $INVALID_TYPE        = 0x01;
+my $INVALID_PATTERN     = 0x02;
+my $INVALID_MINLENGTH   = 0x03;
+my $INVALID_MAXLENGTH   = 0x04;
+my $INVALID_MATCH       = 0x05;
+my $INVALID_VALUE       = 0x06;
+my $INVALID_NODE        = 0x07;
+my $INVALID_ENUMERATION = 0x08;
+my $INVALID_MIN_RANGE   = 0x09;
+my $INVALID_MAX_RANGE   = 0x0A;
+my $INVALID_NUMBER      = 0x0B;
+my $INVALID_COMPLEX     = 0x0C;
+my $INVALID_EXIST       = 0x0D;
+my $INVALID_MIN_OCCURS  = 0x0E;
+my $INVALID_MAX_OCCURS  = 0x0F;
+my $INVALID_CUSTOM      = 0x10;
+my $CRITICAL            = 0x11;
 
-our %complexTypes = ();
+my @errors = (
+  0,
+  'Invalid Node Type',
+  'Invalid Pattern: Regex Pattern failed',
+  'Invalid MinLength: Not enough nodes present',
+  'Invalid MaxLength: Too many nodes present',
+  'Invalid Match: Node to Node match failed',
+  'Invalid Value, Fixed string did not match',
+  'Invalid Node: Required data does not exist for this node',
+  'Invalid Enum: Data not equal to any values supplied',
+  'Invalid Number: Less than allowable range',
+  'Invalid Number: Greater than allowable range',
+  'Invalid Number: Data is not a real number',
+  'Invalid Complex Type: Failed to validate Complex Type',
+  'Invalid Exists: Data didn\'t exist, and should.',
+  'Invalid Occurs: Minium number of occurances not met',
+  'Invalid Occurs: Maxium number of occurances exceeded',
+  'Invalid Custom Filter: Method returned false',
+  'Critical Problem:',
+);
 
-our %simpleTypes = (
-    string     => { pattern => '.*' },
-    integer    => { pattern => '[\-]{0,1}\d+' },
-    double     => { pattern => '[0-9\-\.]*' },
-    token      => { base    => 'string', pattern => '\w+' },
-    boolean    => { pattern => '1|0|true|false' },
-    email      => { pattern => '.+@.+\..+' },
-    date       => { pattern => '\d\d\d\d-\d\d-\d\d', base => 'datetime' },
-    'time'     => { pattern => '\d\d:\d\d',          base => 'datetime' },
-    datetime   => { pattern => '(\d\d\d\d-\d\d-\d\d)?[T ]?(\d\d:\d\d)?', custom => sub { test_datetime(@_) } },
+my %complex_types = ();
+
+my %simple_types = (
+    string     => { pattern => qr/.*/ },
+    integer    => { pattern => qr/[\-]{0,1}\d+/ },
+    'index'    => { pattern => qr/\d+/ },
+    double     => { pattern => qr/[0-9\-\.]*/ },
+    token      => { base    => 'string', pattern => qr/\w+/ },
+    boolean    => { pattern => qr/1|0|true|false/ },
+    email      => { pattern => qr/.+@.+\..+/ },
+    date       => { pattern => qr/\d\d\d\d-\d\d-\d\d/, base => 'datetime' },
+    'time'     => { pattern => qr/\d\d:\d\d/,          base => 'datetime' },
+    datetime   => { pattern => qr/(\d\d\d\d-\d\d-\d\d)?[T ]?(\d\d:\d\d)?/, custom => sub { _test_datetime(@_) } },
     percentage => { base => 'double', minInclusive => 0, maxInclusive => 100 },
   );
 
 =head1 METHODS
 
-=head2 $class->new( $definition, $debug )
+=head2 $class->new( $definition )
 
  Create a new validation object, debug will cause
  All error codes to be replaced by error strings.
 
 =cut
 sub new {
-  my ($class, $definition, $debug) = @_;
+  my ($class, $definition) = @_;
 
-  my $self = bless { debug => $debug, strict => 1 }, $class;
+  my $self = bless { strict => 1 }, $class;
+
   $self->setDefinition( $definition );
 
-  # Set the error codes and messages.
-  if($debug) {
-    $NOERROR             = 0;
-    $INVALID_TYPE        = 'Invalid Node Type (not used) ['.$INVALID_TYPE.']';
-    $INVALID_PATTERN     = 'Invalid Pattern: Regex Pattern failed ['.$INVALID_PATTERN.']';
-    $INVALID_MINLENGTH   = 'Invalid MinLength: Not enough nodes present ['.$INVALID_MINLENGTH.']';
-    $INVALID_MAXLENGTH   = 'Invalid MaxLength: Too many nodes present ['.$INVALID_MAXLENGTH.']';
-    $INVALID_MATCH       = 'Invalid Match: Node to Node match failed ['.$INVALID_MATCH.']';
-    $INVALID_VALUE       = 'Invalid Value ['.$INVALID_VALUE.']';
-    $INVALID_NODE        = 'Invalid Node: Required data does not exist for this node ['.$INVALID_NODE.']';
-    $INVALID_ENUMERATION = 'Invalid Enum: Data not equal to any values supplied ['.$INVALID_ENUMERATION.']';
-    $INVALID_MIN_RANGE   = 'Invalid Number: Less than allowable range ['.$INVALID_MIN_RANGE.']';
-    $INVALID_MAX_RANGE   = 'Invalid Number: Greater than allowable range ['.$INVALID_MAX_RANGE.']';
-    $INVALID_NUMBER      = 'Invalid Number: Data is not a real number ['.$INVALID_NUMBER.']';
-    $INVALID_COMPLEX     = 'Invalid Complex Type: Failed to validate Complex Type ['.$INVALID_COMPLEX.']';
-    $INVALID_CHILDREN    = 'Invalid Children: Failed to validate child node ['.$INVALID_CHILDREN.']';
-    $INVALID_MIN_OCCURS  = 'Invalid Occurs: Minium number of occurances not met ['.$INVALID_MIN_OCCURS.']';
-    $INVALID_MAX_OCCURS  = 'Invalid Occurs: Maxium number of occurances exceeded ['.$INVALID_MAX_OCCURS.']';
-	$INVALID_CUSTOM      = 'Invalid Custom Filter: Method returned false ['.$INVALID_CUSTOM.']';
-    $CRITICAL            = 'Critical Problem [QUIT] ['.$CRITICAL.']';
-  }
   return $self;
 }
 
-=head2 $class->new_from_file( $path, $filename, $debug )
+=head2 $class->newFromFile( $path, $filename, $debug )
 
-  Create a new definition from a stored file.
+  Create a new definition from a dumped perl file.
 
 =cut
-sub new_from_file {
-  my ($class, $filename, $debug) = @_;
+sub newFromFile {
+  my ($class, $filename, @a) = @_;
 
   if(-f $filename) {
-    my $definition = $class->_load_file( $filename );
-    return $class->new( $definition, $debug );
+    my $definition = $class->_load_file( $filename, 1 );
+    return $class->new( $definition, @a );
   }
   croak("Validation Error: Could not find Validate Configuration '$filename'");
 }
 
-=head2 $validator->validate( $data )
+=head2 I<$validator>->validate( $data )
 
   Validate a set of data against this validator.
-  Returns $errors and $error (see synopsys)
+  Returns an $errors structure or 0 if there were no errors.
 
 =cut
 sub validate {
   my ($self, $data) = @_;
   my $def = $self->{'definition'};
-
-  use Data::Dumper;
 
   if(defined($def->{'root'}) and defined($data)) {
     return $self->_validate_elements( definition => $def->{'root'}, data => $data );
@@ -207,7 +306,23 @@ sub validate {
   }
 }
 
-=head2 $validator->setStrict( $bool )
+=head2 I<$validator>->validateFile( $filename )
+
+  Validate a file against this validator.
+
+=cut
+sub validateFile {
+  my ($self, $filename, @a) = @_;
+
+  if(-f $filename) {
+    my $data = $self->_load_file( $filename );
+    return $self->validate( $data, @a );
+  }
+  croak("Validation Error: Could not find data to validate: '$filename'");
+  
+}
+
+=head2 I<$validator>->setStrict( $bool )
 
   Should missing data be considered an error.
 
@@ -217,7 +332,7 @@ sub setStrict {
   $self->{'strict'} = $bool;
 }
 
-=head2 $validator->setDefinition( $definition )
+=head2 I<$validator>->setDefinition( $definition )
 
   Set the validators definition, will load it (used internally too)
 
@@ -227,7 +342,25 @@ sub setDefinition {
   $self->{'definition'} = $self->_load_definition( $definition );
 }
 
-=head2 $validator->_load_definition( $definition )
+=head2 I<$validator>->getErrorString( $error_code )
+
+  Return a human readable string for each error code.
+
+=cut
+sub getErrorString {
+  my ($self, $e) = @_;
+  if($e>0 and $e<=$#errors) {
+    return $errors[$e];
+  }
+  return 'Invalid error code';
+}
+
+=head1 INTERNAL METHODS
+
+  Only read on if you are interesting in knowing some extra stuff about
+  the internals of this module.
+
+=head2 I<$validator>->_load_definition( $definition )
 
   Internal method for loading a definition into the validator
 
@@ -236,8 +369,8 @@ sub _load_definition
 {
   my ($self, $definition) = @_;
 
-  $definition->{'simpleTypes'} = { %simpleTypes, %{$definition->{'simpleTypes'} || {}} };
-  $definition->{'complexTypes'} = { %complexTypes, %{$definition->{'complexTypes'} || {}} };
+  $definition->{'simpleTypes'} = { %simple_types, %{$definition->{'simpleTypes'} || {}} };
+  $definition->{'complexTypes'} = { %complex_types, %{$definition->{'complexTypes'} || {}} };
 
   if(defined($definition->{'include'})) {
     if(ref($definition->{'include'}) eq "ARRAY") {
@@ -260,7 +393,7 @@ sub _load_definition
   return $definition;
 }
 
-=head2 $validator->_load_definition_from_file( $filename )
+=head2 I<$validator>->_load_definition_from_file( $filename )
 
   Internal method for loading a definition from a file
 
@@ -271,7 +404,7 @@ sub _load_definition_from_file {
   return $self->_load_definition( $definition );
 }
 
-=head2 $validator->_validate_elements( %p )
+=head2 I<$validator>->_validate_elements( %p )
 
   Internal method for validating a list of elements;
   p: definition, data, mode
@@ -281,10 +414,9 @@ sub _validate_elements
 {
   my ($self, %p) = @_;
 
-  my $definition = $p{'definition'};
-  my $data       = $p{'data'};
-  my $errors     = {};
-  my $errorcount = 0;
+  my $definition  = $p{'definition'};
+  my $data        = $p{'data'};
+  my $errors      = {};
 
   # This should be AND or OR and controls the logic flow of the data varify
   my $mode = $p{'mode'} || 'AND';
@@ -294,7 +426,6 @@ sub _validate_elements
   }
 
   foreach my $element (@{$definition}) {
-    my $error = 0;
 
     # Element data check
     if(UNIVERSAL::isa($element, 'HASH')) {
@@ -302,69 +433,49 @@ sub _validate_elements
       my $name = $element->{'name'};
 
       # Skip element if it's not defined
-      if(not $name) {
-        carp('Skipping element, no name defined') if $self->{'debug'};
-        return;
-      }
+      next if(not $name);
 
-      # Data hold a node which does not exist in the definition
-      if(not defined($data->{$name}) and $self->{'strict'}) {
-        #carp "VALID DATA: ".join(', ', keys(%{$data}))."\n" if $self->{'debug'};
-        $errors->{$name} = $INVALID_NODE;
-        $error = $INVALID_CHILDREN;
-        next;
-      }
-    
       $element->{'minOccurs'} = 1 if not defined($element->{'minOccurs'});
       $element->{'maxOccurs'} = 1 if not defined($element->{'maxOccurs'});
       $element->{'type'} = 'string' if not defined($element->{'type'});
 
-      my ($te, $ne);
-      ($ne, $error) = $self->_validate_element(
+      my $terrors = $self->_validate_element(
         definition => $element,
         data       => $data->{$name},
         name       => $name,
       );
       
-      confess "Error from validate element, errors not defined!" if not defined $error;
-
       # Fill Errors with required results.
-      if($error or $self->{'showall'}) {
-        $errors->{$name} = $ne;
-        if(ref($errors->{$name}) eq "HASH") {
-          $errors->{"_".$name} = $error;
-        }
-      }
+      $errors->{$name} = $terrors if $terrors;
 
     } elsif(UNIVERSAL::isa($element, 'ARRAY')) {
 
+
       my $subr = {};
-      my $newmode = $mode eq 'OR' ? 'AND' : 'OR';
-      ($subr, $error) = $self->_validate_elements(
+      $subr = $self->_validate_elements(
         definition => $element,
         data       => $data,
         mode       => $mode eq 'OR' ? 'AND' : 'OR',
       );
-      map { $errors->{$_} = $subr->{$_} } keys(%{$subr});
+
+      map { $errors->{$_} = $subr->{$_} } keys(%{$subr}) if $subr and ref($subr);
     } else {
       carp "This is a complex type, but it doesn't look like one: $element";
     }
-
-    if($error) {
-      $errorcount++;
-    } 
   }
-  # Only invalidate parent if all elements have errored and
-  # OR mode or any elements have errored and AND mode
-  my $error = $INVALID_CHILDREN if
-    ($mode eq 'OR' and $errorcount == @{$definition})
-   or ($mode eq 'AND' and $errorcount > 0);
-  $error = $NOERROR if not defined( $error );
 
-  return $errors, $error;
+  if($mode eq 'OR') {
+    # Only invalidate parent if all elements have errored
+    foreach (%{$errors}) {
+      return 0 if not $errors->{$_};
+    }
+    return $errors;
+  }
+
+  return %{$errors} ? $errors : 0;
 }
 
-=head2 $validator->_validate_element( %p )
+=head2 I<$validator>->_validate_element( %p )
 
   Internal method for validating a single element
   p: data, definition, mode
@@ -379,7 +490,6 @@ sub _validate_element {
 
   my @results;
   my $proped = 0;
-  my $error  = 0;
 
   if(ref($data) ne "ARRAY" and defined($data)) {
      $proped = 1;
@@ -390,31 +500,28 @@ sub _validate_element {
   if($definition->{'minOccurs'} >= 1) {
     if(defined($data)) {
       if($definition->{'minOccurs'} > @{$data}) {
-        return $INVALID_MIN_OCCURS, $CRITICAL;
+        return $INVALID_MIN_OCCURS;
       }
     } else {
-      return $INVALID_EXIST, $CRITICAL;
+      return $INVALID_EXIST;
     }
   }
 
   if(defined($data)) {
+
     # maxOccurs Checking
     if($definition->{'maxOccurs'} ne 'unbounded') {
       if($definition->{'maxOccurs'} < @{$data}) {
-        return $INVALID_MAX_OCCURS, $CRITICAL;
+        return $INVALID_MAX_OCCURS;
       }
     }
     
     foreach my $element (@{$data}) {
       # fixed and default checking
       if(defined($definition->{'fixed'})) {
-        if(ref($element) ne "") {
-          croak("Validator Error: You can't check a fixed value on a complexType");
-          return $CRITICAL;
-        }
-        if($element and $element ne $definition->{'fixed'}) {
+        if(ref($element) ne "" or ($element and $element ne $definition->{'fixed'})) {
           push @results, $INVALID_VALUE;
-          $error = 1;
+          next;
         }
       }
 
@@ -423,8 +530,9 @@ sub _validate_element {
       }
 
       my %po;
-      $po{'minLength'} = $definition->{'minLength'} if defined($definition->{'minLength'});
-      $po{'maxLength'} = $definition->{'maxLength'} if defined($definition->{'maxLength'});
+      foreach ('minLength', 'maxLength') {
+        $po{$_} = $definition->{$_} if defined($definition->{$_});
+      }
 
       # Element type checking
       my ($result, $te) = $self->_validate_type(
@@ -433,18 +541,17 @@ sub _validate_element {
         %po, #Passable Options
       );
 
-      push @results, $result;
-      $error = $INVALID_CHILDREN if $te;
+      push @results, $result if $result;
     }
   }
 
   if(@results > 0) {
-    return ($proped ? $results[0] : \@results), $error;
+    return ($proped ? $results[0] : \@results);
   }
-  return '', 0;
+  return 0;
 }
 
-=head2 $validator->_validate_type( %p )
+=head2 I<$validator>->_validate_type( %p )
 
   Internal method for validating a single data type
 
@@ -458,48 +565,57 @@ sub _validate_type {
   my %pdef       = %p;
 
   if(defined($definition->{'simpleTypes'}->{$type})) {
+
     my $typedef = { %{$definition->{'simpleTypes'}->{$type}}, %pdef };
+
     # Base type check
     if(defined($typedef->{'base'})) {
-      my ($err, $te) = $self->_validate_type(
+      my $err = $self->_validate_type(
         type => $typedef->{'base'},
         data => $data,
       );
-      return $err, 1 if $te;
+      return $err if $err;
     }
+
     # Pattern type check
-    if(defined($typedef->{'pattern'})) {
-      my $pattern = $typedef->{'pattern'};
-      
-      if(not eval("\$data =~ /$pattern/")) {
-        return $INVALID_PATTERN, 1;
+    if(defined($typedef->{'pattern'}) and ref($typedef->{'pattern'}) eq 'REGEX') {
+      if($data !~ $typedef->{'pattern'}) {
+        return $INVALID_PATTERN;
       }
     }
-	# Custom method check
-	if(defined($typedef->{'custom'})) {
-		my $method = $typedef->{'custom'};
 
-		if(ref($method) ne 'CODE' or not $method->($data, $typedef)) {
-			return $INVALID_CUSTOM;
-		}
-	}
+  # Custom method check
+  if(defined($typedef->{'custom'})) {
+    my $method = $typedef->{'custom'};
+
+    if(ref($method) ne 'CODE' or not $method->($data, $typedef)) {
+      return $INVALID_CUSTOM;
+    }
+  }
+
     # Length checks
     if(defined($typedef->{'maxLength'})) {
       if(length($data) > $typedef->{'maxLength'}) {
-        return $INVALID_MAXLENGTH, 1;
+        return $INVALID_MAXLENGTH;
       }
     }
+
     if(defined($typedef->{'minLength'})) {
       if(length($data) < $typedef->{'minLength'}) {
-        return $INVALID_MINLENGTH, 1;
+        return $INVALID_MINLENGTH;
       }
     }
+
     # Match another node
-    if(defined($typedef->{'match'})) {
-      if($data ne $self->_find_value( path => $typedef->{'match'}, data => $data )) {
-        return $INVALID_MATCH, 1;
+    if(defined($typedef->{'match'}) or defined($typedef->{'notMatch'})) {
+      my $path   = $typedef->{'match'} || $typedef->{'notMatch'};
+      my $result = $self->_find_value( path => $path, data => $data );
+      if( ($data ne $result and $typedef->{'match'})
+       or ($data eq $result and $typedef->{'notMatch'})) {
+        return $INVALID_MATCH;
       }
     }
+
     if(defined($typedef->{'enumeration'})) {
       if(ref($typedef->{'enumeration'}) ne 'ARRAY') {
         croak("Validator Error: Enumberation not of the correct type");
@@ -508,35 +624,39 @@ sub _validate_type {
       foreach (@{$typedef->{'enumeration'}}) {
         $found = 1 if $_ eq $data;
       }
-      return $INVALID_ENUMERATION, 1 if not $found;
+      return $INVALID_ENUMERATION if not $found;
     }
+
     if(looks_like_number($data)) {
-      return $INVALID_MIN_RANGE, 1 if defined($typedef->{'minInclusive'}) and $data < $typedef->{'minInclusive'};
-      return $INVALID_MAX_RANGE, 1 if defined($typedef->{'maxInclusive'}) and $data > $typedef->{'maxInclusive'};
-      return $INVALID_MIN_RANGE, 1 if defined($typedef->{'minExclusive'}) and $data <= $typedef->{'minExclusive'};
-      return $INVALID_MAX_RANGE, 1 if defined($typedef->{'maxExclusive'}) and $data >= $typedef->{'maxExclusive'};
-#      return $INVALID_FRACTION, 1 if defined($typedef->{'fractionDigits'}) and $data !~ /\.(\d{})$/;
+      return $INVALID_MIN_RANGE if defined($typedef->{'minInclusive'}) and $data < $typedef->{'minInclusive'};
+      return $INVALID_MAX_RANGE if defined($typedef->{'maxInclusive'}) and $data > $typedef->{'maxInclusive'};
+      return $INVALID_MIN_RANGE if defined($typedef->{'minExclusive'}) and $data <= $typedef->{'minExclusive'};
+      return $INVALID_MAX_RANGE if defined($typedef->{'maxExclusive'}) and $data >= $typedef->{'maxExclusive'};
+
+#     return $INVALID_FRACTION if defined($typedef->{'fractionDigits'}) and $data !~ /\.(\d{})$/;
+
     } elsif(defined($typedef->{'minInclusive'}) or defined($typedef->{'maxInclusive'}) or
       defined($typedef->{'minExclusive'}) or defined($typedef->{'maxExclusive'}) or
       defined($typedef->{'fractionDigits'})) {
-      return $INVALID_NUMBER, 1;
+      return $INVALID_NUMBER;
     }
+
   } elsif(defined($definition->{'complexTypes'}->{$type})) {
     my $typedef = $definition->{'complexTypes'}->{$type};
     if(ref($data) eq "HASH") {
       return $self->_validate_elements( definition => $typedef, data => $data );
     } else {
-      return $INVALID_COMPLEX, 1;
+      return $INVALID_COMPLEX;
     }
   } else {
     croak("Validator Error: Can not find type definition '$type'");
-    return $CRITICAL, 1;
+    return $CRITICAL;
   }
   
-  return $NOERROR, 0;
+  return $NOERROR;
 }
 
-=head2 $validator->_find_value( %p )
+=head2 I<$validator>->_find_value( %p )
 
   Internal method for finding a value match (basic xpath)
 
@@ -564,7 +684,7 @@ sub _find_value
   return $data;
 }
 
-=head2 $validator->_push_hash( $dest, $source )
+=head2 I<$validator>->_push_hash( $dest, $source )
 
   Internal method for copying a hash to another
 
@@ -581,43 +701,62 @@ sub _push_hash
   return $dest;
 }
 
-=head2 $validator->_load_file( $file )
+=head2 I<$validator>->_load_file( $file )
 
   Internal method for loading a file, must be valid perl syntax.
   Yep that's right, be bloody careful when loading from files.
 
 =cut
 sub _load_file {
-  my ($self, $filename) = @_;
-
+  my ($self, $filename, $def) = @_;
   open( VALIDATE, $filename );
     my $content = join('', <VALIDATE>);
   close( VALIDATE );
-
-  my $structure = eval('{ '.$content.' }');
-  croak("Validator Error! $@") if $@;
-  return $structure;
+  
+  my $data;
+  if($content =~ /^<\?xml/) {
+    # XML File
+    eval("use Data::Validate::XSD::ParseXML");
+	croak("Did you forget to install XML::SAX? ($@)") if $@;
+	my $parser = Data::Validate::XSD::ParseXML->new( $content );
+	if($def and $content =~ /XMLSchema/) {
+		$data = $parser->definition();
+	} else {
+		$data = $parser->data();
+	}
+  } else {
+    $data = eval('{ '.$content.' }');
+    croak("Validator Error! $@") if $@;
+  }
+  return $data;
 }
 
-=head2 $validate->objectify( $class, @data )
+=head2 $validate->_test_datetime( $typedef )
 
-  Create a data based object for this type.
+  Test a date time range is a valid date.
 
 =cut
-sub test_datetime {
+sub _test_datetime {
   my ($data, $typedef) = @_;
   if($data) {
-	my $epoch = str2time( $data );
-	if($epoch) {
-		return 1;
-	}
+    my $epoch = str2time( $data );
+    if($epoch) {
+      return 1;
+    }
   }
-  print undef;
+  return undef;
 }
+
+=head1 KNOWN BUGS
+
+ * XML and YML suport not added yet.
+ * Fraction Didgets test doesn't work yet.
 
 =head1 AUTHOR
 
- Copyright, Martin Owens 2007, GPLv3
+ Copyright, Martin Owens 2007-2008, Affero General Public License (AGPL)
+
+ http://www.fsf.org/licensing/licenses/agpl-3.0.html
 
 =cut
 1;

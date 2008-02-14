@@ -521,7 +521,9 @@ sub _sctdeal
 
 =head1 AUTHOR
 
- I<Martin Owens> Copyright 2007, GPLv3
+ Copyright, Martin Owens 2005-2008, Affero General Public License (AGPL)
+
+ http://www.fsf.org/licensing/licenses/agpl-3.0.html
 
 =cut
 1;
